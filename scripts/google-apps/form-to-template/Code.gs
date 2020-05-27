@@ -7,43 +7,30 @@ const VALUE_PROCESSORS = {
 };
 
 function autoFillGoogleDocFromForm(e) {
-
-    var values = getValues(e.namedValues);
-
+    const values = getValues(e.namedValues);
     //file is the template file, and you get it by ID
-    var file = DriveApp.getFileById(TEMPLATE_ID);
-
+    const file = DriveApp.getFileById(TEMPLATE_ID);
     //We can make a copy of the template, name it, and optionally tell it what folder to live in
     //file.makeCopy will return a Google Drive file object
-    var folder = DriveApp.getFolderById(OUTPUT_FOLDER_ID);
-
-    var filename = FILENAME_GENERATOR.map(v => values[v] || v).join(' ');
-    var copy = file.makeCopy(filename, folder);
-
+    const folder = DriveApp.getFolderById(OUTPUT_FOLDER_ID);
+    const filename = FILENAME_GENERATOR.map(v => values[v] || v).join(' ');
+    const copy = file.makeCopy(filename, folder);
     //Once we've got the new file created, we need to open it as a document by using its ID
-    var doc = DocumentApp.openById(copy.getId());
-
+    const doc = DocumentApp.openById(copy.getId());
     //Since everything we need to change is in the body, we need to get that
-    var body = doc.getBody();
-
+    const body = doc.getBody();
     Object.keys(values).forEach((field) => {
         body.replaceText('{{' + field + '}}', values[field] || '');
     });
-
     //Lastly we save and close the document to persist our changes
     doc.saveAndClose();
 }
 
 function _dateTimeFromUtc(dateTimeString) {
-    Logger.log(dateTimeString)
-    var timestampDate = new Date(dateTimeString);
-
-    var timestampUtc = timestampDate.getTime();
-    var offsetTimestamp = timestampUtc + TIMEZONE_OFFSET;
-    timestampDate = new Date(offsetTimestamp)
-
-    var [date, time] = timestampDate.toISOString().split('T');
-    var [time, _] = time.split('.');
+    const timestampUtc = (new Date(dateTimeString)).getTime();
+    const offsetTimestampDate = new Date(timestampUtc + TIMEZONE_OFFSET)
+    const [date, rawTime] = offsetTimestampDate.toISOString().split('T');
+    const [time, _] = rawTime.split('.');
     return {date, time};
 }
 
@@ -54,7 +41,7 @@ function _processorDateOnly(value) {
 
 function processValues(values) {
     for (let field in VALUE_PROCESSORS) {
-        let value = values[field];
+        const value = values[field];
         if (!value) {
             continue;
         }
@@ -63,39 +50,33 @@ function processValues(values) {
     return values;
 }
 
-function getValues(values, sheet) {
-    var result = {};
-
+function getValues(values) {
+    const result = {};
     for (let field in values) {
+        // There is some regex interpretation in the `body.replaceText` function so we need to escape ( and )
         let fieldKey = field.replace('(', '\\(').replace(')', '\\)').trim();
         result[fieldKey] = values[field].pop()
     }
-    
     const {date: ___date, time: ___time} = _dateTimeFromUtc(result["Timestamp"]);
-    const processedValues = {
+    return {
         ...processValues(result),
         ___date,
         ___time
-    }
-
-    return processedValues;
+    };
 }
 
 // Generate the selected row in the active sheet
 function generateRow() {
-    var spreadsheet = SpreadsheetApp.getActive();
-    var sheet = spreadsheet.getActiveSheet();
-    var cellRange = sheet.getActiveCell();
-    var selectedRow = cellRange.getRow();
-    var dataIndex = selectedRow - 2; // -1 because it is 1 indexed array, -1 again because we shift off the headers
-
-    var data = sheet.getDataRange().getValues();
-    var headers = data.shift();
-
-    var namedValues = {};
+    const spreadsheet = SpreadsheetApp.getActive();
+    const sheet = spreadsheet.getActiveSheet();
+    const cellRange = sheet.getActiveCell();
+    const selectedRow = cellRange.getRow();
+    const dataIndex = selectedRow - 2; // -1 because it is 1 indexed array, -1 again because we shift off the headers
+    const data = sheet.getDataRange().getValues();
+    const headers = data.shift();
+    const namedValues = {};
     headers.forEach((header, i) => {
         namedValues[header] = [data[dataIndex][i]]
     })
-
     autoFillGoogleDocFromForm({namedValues})
 }
