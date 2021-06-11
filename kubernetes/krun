@@ -1,0 +1,68 @@
+#!/bin/bash
+
+###################################################################
+#Script Name	: Pod Runner
+#Description	: Run a command on the first matching pod
+#Args         : -p POD_NAME | [-n NAMESPACE] | [-c COMMAND] | [-v/--verbose] | [-b/--brave]
+#Author       : Krakaw
+#Email        : 41575888+Krakaw@users.noreply.github.com
+###################################################################
+
+args=("$*")
+
+NAMESPACE=
+POD=
+COMMAND=sh
+while [ "$1" != "" ]; do
+  case $1 in
+  -n | --namespace)
+    shift
+    NAMESPACE=$1
+    ;;
+  -p | --pod)
+    shift
+    POD=$1
+    ;;
+  -c | --command)
+    shift
+    COMMAND=$1
+    ;;
+  -b | --brave)
+    BRAVE=1
+    ;;
+  -v | --verbose)
+    VERBOSE=1
+    ;;
+  esac
+  shift
+done
+
+if [[ -z "$POD" ]]; then
+  echo "Please specify a pod name with -p"
+  exit 1
+fi
+
+if [[ -n "${VERBOSE}" ]]; then
+  CONTEXT=$(kubectl config current-context)
+  echo "Running in context: ${CONTEXT}"
+fi
+
+NP=$(kubectl get pods -A | tail -n+2 | awk -v NAMESPACE="${NAMESPACE}" -v POD="${POD}" '$1~NAMESPACE && $2~POD' | head -n 1)
+
+if [[ -n "${VERBOSE}" ]]; then
+  echo "Found Pod:"
+  echo "$NP"
+fi
+NAMESPACE=$(echo "$NP" | awk '{print $1}')
+POD=$(echo "$NP" | awk '{print $2}')
+if [[ -n "$BRAVE" ]]; then
+  echo "Executing function"
+  kubectl exec -n ${NAMESPACE} -ti ${POD} -- ${COMMAND}
+else
+  echo "Run this command or execute: $0 $args -b"
+  echo ""
+  echo ""
+  echo "kubectl exec -n ${NAMESPACE} -ti ${POD} -- ${COMMAND}"
+  echo ""
+  echo ""
+fi
